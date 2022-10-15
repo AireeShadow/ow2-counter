@@ -10,7 +10,7 @@ from data import Tank, DPS, Support
 
 class OW2():
     def __init__(self):
-        self.version = '1.0.1'
+        self.version = '1.0.2'
         self.logger = self._get_logger()
         self.savefile = 'counter.dat'
         self.backup = 'backup.dat'
@@ -65,6 +65,7 @@ class OW2():
                                 self.tank.total += 1
                                 if self.tank.current_wins > 6:
                                     self.tank.current_wins = 0
+                                    self.tank.current_losses = 0
                                 return 
                             case 'minus':
                                 self.tank.current_wins -= 1
@@ -83,6 +84,7 @@ class OW2():
                                 self.tank.total_losses += 1
                                 self.tank.total += 1
                                 if self.tank.current_losses > 19:
+                                    self.tank.current_wins = 0
                                     self.tank.current_losses = 0
                             case 'minus':
                                 self.tank.current_losses -= 1
@@ -104,6 +106,7 @@ class OW2():
                                 self.dps.total += 1
                                 if self.dps.current_wins > 6:
                                     self.dps.current_wins = 0
+                                    self.dps.current_losses = 0
                             case 'minus':
                                 self.dps.current_wins -= 1
                                 self.dps.total_wins -= 1
@@ -121,6 +124,7 @@ class OW2():
                                 self.dps.total_losses += 1
                                 self.dps.total += 1
                                 if self.dps.current_losses > 19:
+                                    self.dps.current_wins = 0
                                     self.dps.current_losses = 0
                             case 'minus':
                                 self.dps.current_losses -= 1
@@ -142,6 +146,7 @@ class OW2():
                                 self.support.total += 1
                                 if self.support.current_wins > 6:
                                     self.support.current_wins = 0
+                                    self.support.current_losses = 0
                             case 'minus':
                                 self.support.current_wins -= 1
                                 self.support.total_wins -= 1
@@ -159,6 +164,7 @@ class OW2():
                                 self.support.total_losses += 1
                                 self.support.total += 1
                                 if self.support.current_losses > 19:
+                                    self.support.current_wins = 0
                                     self.support.current_losses = 0
                             case 'minus':
                                 self.support.current_losses -= 1
@@ -173,44 +179,34 @@ class OW2():
     
     def _update_matcher(self, event: str) -> list:
         match event:
-            case 'tank_wins_plus' | 'tank_wins_minus' | 'tank_wins_input':
+            case 'tank_wins_plus' | 'tank_wins_minus' | 'tank_wins_input' | 'tank_losses_plus' | 'tank_losses_minus' | 'tank_losses_input':
                 result_list = [
                     ('tank_wins_input', self.tank.current_wins),
                     ('tank_total_wins', self.tank.total_wins),
-                    ('tank_total_games', self.tank.total)
-                    
-                ]
-            case 'tank_losses_plus' | 'tank_losses_minus' | 'tank_losses_input':
-                result_list = [
+                    ('tank_total_games', self.tank.total),
                     ('tank_losses_input', self.tank.current_losses),
                     ('tank_total_losses', self.tank.total_losses),
                     ('tank_total_games', self.tank.total)
-                ]
-            case 'dps_wins_plus' | 'dps_wins_minus' | 'dps_wins_input':
+                ]    
+            case 'dps_wins_plus' | 'dps_wins_minus' | 'dps_wins_input' | 'dps_losses_plus' | 'dps_losses_minus' | 'dps_losses_input':
                 result_list = [
                     ('dps_wins_input', self.dps.current_wins),
                     ('dps_total_wins', self.dps.total_wins),
-                    ('dps_total_games', self.dps.total)
-                    
-                ]
-            case 'dps_losses_plus' | 'dps_losses_minus' | 'dps_losses_input':
-                result_list = [
+                    ('dps_total_games', self.dps.total),
                     ('dps_losses_input', self.dps.current_losses),
                     ('dps_total_losses', self.dps.total_losses),
                     ('dps_total_games', self.dps.total)
+                    
                 ]
-            case 'support_wins_plus' | 'support_wins_minus' | 'support_wins_input':
+            case 'support_wins_plus' | 'support_wins_minus' | 'support_wins_input' | 'support_losses_plus' | 'support_losses_minus' | 'support_losses_input':
                 result_list = [
                     ('support_wins_input', self.support.current_wins),
                     ('support_total_wins', self.support.total_wins),
-                    ('support_total_games', self.support.total)
-                    
-                ]
-            case 'support_losses_plus' | 'support_losses_minus' | 'support_losses_input':
-                result_list = [
+                    ('support_total_games', self.support.total),
                     ('support_losses_input', self.support.current_losses),
                     ('support_total_losses', self.support.total_losses),
                     ('support_total_games', self.support.total)
+                    
                 ]
         return result_list
     
@@ -223,9 +219,11 @@ class OW2():
         layout = [
             [
                 sg.Text('Tank'), 
+                sg.Text('Wins:'),
                 sg.Button('+', key='tank_wins_plus'), 
                 sg.InputText(self.tank.current_wins, key='tank_wins_input', size=2), 
                 sg.Button('-', key='tank_wins_minus'),
+                sg.Text('Losses:'),
                 sg.Button('+', key='tank_losses_plus'), 
                 sg.InputText(self.tank.current_losses, key='tank_losses_input', size=2), 
                 sg.Button('-', key='tank_losses_minus'),
@@ -238,9 +236,11 @@ class OW2():
             ],
             [
                 sg.Text('DPS'), 
+                sg.Text('Wins:'),
                 sg.Button('+', key='dps_wins_plus'),
                 sg.InputText(self.dps.current_wins, key='dps_wins_input', size=2), 
                 sg.Button('-', key='dps_wins_minus'),
+                sg.Text('Losses:'),
                 sg.Button('+', key='dps_losses_plus'), 
                 sg.InputText(self.dps.current_losses, key='dps_losses_input', size=2), 
                 sg.Button('-', key='dps_losses_minus'),
@@ -253,9 +253,11 @@ class OW2():
             ],
             [
                 sg.Text('Support'), 
+                sg.Text('Wins:'),
                 sg.Button('+', key='support_wins_plus'), 
                 sg.InputText(self.support.current_wins, key='support_wins_input', size=2), 
                 sg.Button('-', key='support_wins_minus'),
+                sg.Text('Losses:'),
                 sg.Button('+', key='support_losses_plus'), 
                 sg.InputText(self.support.current_losses, key='support_losses_input', size=2), 
                 sg.Button('-', key='support_losses_minus'),
