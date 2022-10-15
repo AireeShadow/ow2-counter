@@ -1,0 +1,2 @@
+1.0.1 - fixing incorrect loading of data - switched to three dataclasses instead of one
+1.0.0 - initial commit

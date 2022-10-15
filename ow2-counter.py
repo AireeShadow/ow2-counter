@@ -2,21 +2,15 @@ import os
 import pickle
 import logging
 from logging import Logger
-from dataclasses import dataclass
+
 import PySimpleGUI as sg
 
-@dataclass
-class Counter:
-    total_wins: int = 0
-    total_losses: int = 0
-    total: int = 0
-    current_wins: int = 0
-    current_losses: int = 0
+from data import Tank, DPS, Support
 
 
 class OW2():
-    
     def __init__(self):
+        self.version = '1.0.1'
         self.logger = self._get_logger()
         self.savefile = 'counter.dat'
         self.backup = 'backup.dat'
@@ -32,12 +26,16 @@ class OW2():
         if load_file:
             with open(load_file, 'rb') as counter:
                 counter_tuple = pickle.load(counter)
+                self.logger.debug(f'Coounter tuple is {counter_tuple}')
                 self.tank = counter_tuple[0]
                 self.dps = counter_tuple[1]
                 self.support = counter_tuple[2]
         else:
-            self.tank = self.dps = self.support = Counter()
-             
+            self.tank = Tank()
+            self.dps = DPS()
+            self.support = Support()
+            
+    #TODO: logger is not working, for some reason         
     def _get_logger(self) -> Logger:
         logger = logging.getLogger('ow2_logger')
         fh = logging.FileHandler('ow2-counter.log')
@@ -49,9 +47,10 @@ class OW2():
     
     def _save(self, counter_tuple: tuple) -> None:
         if os.path.exists(self.savefile):
-            os.remove(self.backup)
+            if os.path.exists(self.backup):
+                os.remove(self.backup)
             os.rename(self.savefile, self.backup)
-        with open(self.savefile, 'wb') as savefile:
+        with open(self.savefile, 'ab') as savefile:
             pickle.dump(counter_tuple, savefile)
     
     def _the_counter(self, role: str, result: str, operator: str) -> None:
@@ -215,6 +214,9 @@ class OW2():
                 ]
         return result_list
     
+    
+    #TODO: find the issue with double event processing
+    #TODO: find the issue with input text noot working as intended
     def gui(self) -> None:
         self.logger.debug('Initializing the GUI')
         sg.theme('Purple')
@@ -222,10 +224,10 @@ class OW2():
             [
                 sg.Text('Tank'), 
                 sg.Button('+', key='tank_wins_plus'), 
-                sg.InputText(self.tank.current_wins, key='tank_wins_input', size=2, enable_events=True), 
+                sg.InputText(self.tank.current_wins, key='tank_wins_input', size=2), 
                 sg.Button('-', key='tank_wins_minus'),
                 sg.Button('+', key='tank_losses_plus'), 
-                sg.InputText(self.tank.current_losses, key='tank_losses_input', size=2, enable_events=True), 
+                sg.InputText(self.tank.current_losses, key='tank_losses_input', size=2), 
                 sg.Button('-', key='tank_losses_minus'),
                 sg.Text('Total wins: '), 
                 sg.Text(str(self.tank.total_wins), key='tank_total_wins'),
@@ -237,10 +239,10 @@ class OW2():
             [
                 sg.Text('DPS'), 
                 sg.Button('+', key='dps_wins_plus'),
-                sg.InputText(self.dps.current_wins, key='dps_wins_input', size=2, enable_events=True), 
+                sg.InputText(self.dps.current_wins, key='dps_wins_input', size=2), 
                 sg.Button('-', key='dps_wins_minus'),
                 sg.Button('+', key='dps_losses_plus'), 
-                sg.InputText(self.dps.current_losses, key='dps_losses_input', size=2, enable_events=True), 
+                sg.InputText(self.dps.current_losses, key='dps_losses_input', size=2), 
                 sg.Button('-', key='dps_losses_minus'),
                 sg.Text('Total wins: '),
                 sg.Text(str(self.dps.total_wins), key='dps_total_wins'),
@@ -252,10 +254,10 @@ class OW2():
             [
                 sg.Text('Support'), 
                 sg.Button('+', key='support_wins_plus'), 
-                sg.InputText(self.support.current_wins, key='support_wins_input', size=2, enable_events=True), 
+                sg.InputText(self.support.current_wins, key='support_wins_input', size=2), 
                 sg.Button('-', key='support_wins_minus'),
                 sg.Button('+', key='support_losses_plus'), 
-                sg.InputText(self.support.current_losses, key='support_losses_input', size=2, enable_events=True), 
+                sg.InputText(self.support.current_losses, key='support_losses_input', size=2), 
                 sg.Button('-', key='support_losses_minus'),
                 sg.Text('Total wins: '), 
                 sg.Text(str(self.support.total_wins), key='support_total_wins'),
@@ -265,7 +267,7 @@ class OW2():
                 sg.Text(str(self.support.total), key='support_total_games')
             ]
         ]
-        window = sg.Window('Overwatch 2 games counter', layout)
+        window = sg.Window(f'Overwatch 2 games counter, version {self.version}', layout)
         while True:
             event, context = window.read()
             if event == sg.WIN_CLOSED or event == 'Exit':
