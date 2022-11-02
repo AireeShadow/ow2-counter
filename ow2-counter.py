@@ -5,38 +5,21 @@ from logging import Logger
 
 import PySimpleGUI as sg
 
-from data import Tank, DPS, Support
+from data import Tank, DPS, Support, Open
 
 
 class OW2():
     def __init__(self):
-        self.version = '1.0.2'
-        self.logger = self._get_logger()
+        self.version = '1.1.0'
+        self.logger = OW2._get_logger()
         self.savefile = 'counter.dat'
         self.backup = 'backup.dat'
-        if os.path.exists(self.savefile):
-            self.logger.info('Loading the save file.')
-            load_file = self.savefile
-        elif os.path.exists(self.backup):
-           self.logger.warning(f'Saved file not found, using the backup file instead')
-           load_file = self.backup
-        else:
-            self.logger.warning('Neither save file, nor backup file found, creating new save.')
-            load_file = False
-        if load_file:
-            with open(load_file, 'rb') as counter:
-                counter_tuple = pickle.load(counter)
-                self.logger.debug(f'Coounter tuple is {counter_tuple}')
-                self.tank = counter_tuple[0]
-                self.dps = counter_tuple[1]
-                self.support = counter_tuple[2]
-        else:
-            self.tank = Tank()
-            self.dps = DPS()
-            self.support = Support()
+        self._load()
+        self.total_games = self.tank.total + self.dps.total + self.support.total + self.open.total
             
-    #TODO: logger is not working, for some reason         
-    def _get_logger(self) -> Logger:
+    #FIXME: logger is not working, for some reason      
+    @staticmethod   
+    def _get_logger() -> Logger:
         logger = logging.getLogger('ow2_logger')
         fh = logging.FileHandler('ow2-counter.log')
         fh.setLevel(logging.DEBUG)
@@ -52,6 +35,52 @@ class OW2():
             os.rename(self.savefile, self.backup)
         with open(self.savefile, 'ab') as savefile:
             pickle.dump(counter_tuple, savefile)
+
+    def _load(self):
+        if os.path.exists(self.savefile):
+            self.logger.info('Loading the save file.')
+            load_file = self.savefile
+        elif os.path.exists(self.backup):
+           self.logger.warning(f'Saved file not found, using the backup file instead')
+           load_file = self.backup
+        else:
+            self.logger.warning('Neither save file, nor backup file found, creating new save.')
+            load_file = False
+        if load_file:
+            with open(load_file, 'rb') as counter:
+                counter_tuple = pickle.load(counter)
+                self.logger.debug(f'Counter tuple is {counter_tuple}')
+                self.tank = counter_tuple[0]
+                self.dps = counter_tuple[1]
+                self.support = counter_tuple[2]
+                #Backward compatibility for 1.0.2 version
+                try:
+                    self.open = counter_tuple[3]
+                except (AttributeError, IndexError):
+                    self.open = Open()
+        else:
+            self.tank = Tank()
+            self.dps = DPS()
+            self.support = Support()
+            self.open = Open()
+            
+    def _backup(self):
+        if os.path.exists(self.backup):
+           self.logger.warning(f'Loading from backup')
+           load_file = self.backup
+           if load_file:
+                with open(load_file, 'rb') as counter:
+                    counter_tuple = pickle.load(counter)
+                    self.logger.debug(f'Counter tuple is {counter_tuple}')
+                    self.tank = counter_tuple[0]
+                    self.dps = counter_tuple[1]
+                    self.support = counter_tuple[2]
+                    #Backward compatibility for 1.0.2 version
+                    try:
+                        self.open = counter_tuple[3]
+                    except (AttributeError, IndexError):
+                        self.open = Open() 
+           
     
     def _the_counter(self, role: str, result: str, operator: str) -> None:
         match role:
@@ -176,135 +205,253 @@ class OW2():
                                     self.support.total_losses = 0
                                 if self.support.total < 0:
                                     self.support.total = 0   
+            case 'open':
+                match result:
+                    case 'wins':
+                        match operator:
+                            case 'plus':
+                                self.open.current_wins += 1
+                                self.open.total_wins += 1
+                                self.open.total += 1
+                                if self.open.current_wins > 6:
+                                    self.open.current_wins = 0
+                                    self.open.current_losses = 0
+                            case 'minus':
+                                self.open.current_wins -= 1
+                                self.open.total_wins -= 1
+                                self.open.total -= 1
+                                if self.open.current_wins < 0:
+                                    self.open.current_wins = 0
+                                if self.open.total_wins < 0:
+                                    self.open.total_wins = 0
+                                if self.open.total < 0:
+                                    self.open.total = 0                           
+                    case 'losses':
+                        match operator:
+                            case 'plus':
+                                self.open.current_losses += 1
+                                self.open.total_losses += 1
+                                self.open.total += 1
+                                if self.open.current_losses > 19:
+                                    self.open.current_wins = 0
+                                    self.open.current_losses = 0
+                            case 'minus':
+                                self.open.current_losses -= 1
+                                self.open.total_losses -= 1
+                                self.open.total -= 1
+                                if self.open.current_losses < 0:
+                                    self.open.current_losses = 0
+                                if self.open.total_losses < 0:
+                                    self.open.total_losses = 0
+                                if self.open.total < 0:
+                                    self.open.total = 0   
     
     def _update_matcher(self, event: str) -> list:
         match event:
-            case 'tank_wins_plus' | 'tank_wins_minus' | 'tank_wins_input' | 'tank_losses_plus' | 'tank_losses_minus' | 'tank_losses_input':
+            case 'tank_wins_plus' | 'tank_wins_minus' | 'tank_wins' | 'tank_losses_plus' | 'tank_losses_minus' | 'tank_losses':
                 result_list = [
-                    ('tank_wins_input', self.tank.current_wins),
+                    ('tank_wins', self.tank.current_wins),
                     ('tank_total_wins', self.tank.total_wins),
                     ('tank_total_games', self.tank.total),
-                    ('tank_losses_input', self.tank.current_losses),
+                    ('tank_losses', self.tank.current_losses),
                     ('tank_total_losses', self.tank.total_losses),
-                    ('tank_total_games', self.tank.total)
+                    ('tank_total_games', self.tank.total),
+                    ('total_games', self.total_games)
                 ]    
-            case 'dps_wins_plus' | 'dps_wins_minus' | 'dps_wins_input' | 'dps_losses_plus' | 'dps_losses_minus' | 'dps_losses_input':
+            case 'dps_wins_plus' | 'dps_wins_minus' | 'dps_wins' | 'dps_losses_plus' | 'dps_losses_minus' | 'dps_losses':
                 result_list = [
-                    ('dps_wins_input', self.dps.current_wins),
+                    ('dps_wins', self.dps.current_wins),
                     ('dps_total_wins', self.dps.total_wins),
                     ('dps_total_games', self.dps.total),
-                    ('dps_losses_input', self.dps.current_losses),
+                    ('dps_losses', self.dps.current_losses),
                     ('dps_total_losses', self.dps.total_losses),
-                    ('dps_total_games', self.dps.total)
+                    ('dps_total_games', self.dps.total),
+                    ('total_games', self.total_games)
                     
                 ]
-            case 'support_wins_plus' | 'support_wins_minus' | 'support_wins_input' | 'support_losses_plus' | 'support_losses_minus' | 'support_losses_input':
+            case 'support_wins_plus' | 'support_wins_minus' | 'support_wins' | 'support_losses_plus' | 'support_losses_minus' | 'support_losses':
                 result_list = [
-                    ('support_wins_input', self.support.current_wins),
+                    ('support_wins', self.support.current_wins),
                     ('support_total_wins', self.support.total_wins),
                     ('support_total_games', self.support.total),
-                    ('support_losses_input', self.support.current_losses),
+                    ('support_losses', self.support.current_losses),
                     ('support_total_losses', self.support.total_losses),
-                    ('support_total_games', self.support.total)
+                    ('support_total_games', self.support.total),
+                    ('total_games', self.total_games)
                     
+                ]
+            case 'open_wins_plus' | 'open_wins_minus' | 'open_wins' | 'open_losses_plus' | 'open_losses_minus' | 'open_losses':
+                result_list = [
+                    ('open_wins', self.open.current_wins),
+                    ('open_total_wins', self.open.total_wins),
+                    ('open_total_games', self.open.total),
+                    ('open_losses', self.open.current_losses),
+                    ('open_total_losses', self.open.total_losses),
+                    ('open_total_games', self.open.total),
+                    ('total_games', self.total_games)
+                    
+                ]
+            case 'total_games':
+                result_list = [
+                    ('total_games', self.total_games)
+                ]
+            case 'set' | 'backup':
+                result_list = [
+                    ('tank_wins', self.tank.current_wins),
+                    ('tank_total_wins', self.tank.total_wins),
+                    ('tank_total_games', self.tank.total),
+                    ('tank_losses', self.tank.current_losses),
+                    ('tank_total_losses', self.tank.total_losses),
+                    ('tank_total_games', self.tank.total),
+                    ('dps_wins', self.dps.current_wins),
+                    ('dps_total_wins', self.dps.total_wins),
+                    ('dps_total_games', self.dps.total),
+                    ('dps_losses', self.dps.current_losses),
+                    ('dps_total_losses', self.dps.total_losses),
+                    ('dps_total_games', self.dps.total),
+                    ('support_wins', self.support.current_wins),
+                    ('support_total_wins', self.support.total_wins),
+                    ('support_total_games', self.support.total),
+                    ('support_losses', self.support.current_losses),
+                    ('support_total_losses', self.support.total_losses),
+                    ('support_total_games', self.support.total),
+                    ('open_wins', self.open.current_wins),
+                    ('open_total_wins', self.open.total_wins),
+                    ('open_total_games', self.open.total),
+                    ('open_losses', self.open.current_losses),
+                    ('open_total_losses', self.open.total_losses),
+                    ('open_total_games', self.open.total),
+                    ('total_games', self.total_games)
                 ]
         return result_list
     
+    def _layout(self) -> list:
+        column = [
+            [
+                sg.Text('Tank', s=11, font='bold'), 
+                sg.Text('Victories:'),
+                sg.Button('+', key='tank_wins_plus'), 
+                sg.Text(self.tank.current_wins, key='tank_wins'), 
+                sg.Button('-', key='tank_wins_minus'),
+                sg.Text('Defeats:'),
+                sg.Button('+', key='tank_losses_plus'), 
+                sg.Text(self.tank.current_losses, key='tank_losses'), 
+                sg.Button('-', key='tank_losses_minus'),
+                sg.Text('Total victories:'), 
+                sg.InputText(self.tank.total_wins, key='tank_total_wins', size=3),
+                sg.Text('Total defeats/ties:'), 
+                sg.InputText(self.tank.total_losses, key='tank_total_losses', size=3),
+                sg.Text('Total games:'), 
+                sg.Text(self.tank.total, key='tank_total_games')
+            ],
+            [
+                sg.Text('DPS', s=11, font='bold'), 
+                sg.Text('Victories:'),
+                sg.Button('+', key='dps_wins_plus'),
+                sg.Text(self.dps.current_wins, key='dps_wins'), 
+                sg.Button('-', key='dps_wins_minus'),
+                sg.Text('Defeats:'),
+                sg.Button('+', key='dps_losses_plus'), 
+                sg.Text(self.dps.current_losses, key='dps_losses'), 
+                sg.Button('-', key='dps_losses_minus'),
+                sg.Text('Total victories:'),
+                sg.InputText(self.dps.total_wins, key='dps_total_wins', size=3),
+                sg.Text('Total defeats/ties:'), 
+                sg.InputText(self.dps.total_losses, key='dps_total_losses', size=3),
+                sg.Text('Total games:'), 
+                sg.Text(self.dps.total, key='dps_total_games')
+            ],
+            [
+                sg.Text('Support', s=11, font='bold'), 
+                sg.Text('Victories:'),
+                sg.Button('+', key='support_wins_plus'),
+                sg.Text(self.support.current_wins, key='support_wins'), 
+                sg.Button('-', key='support_wins_minus'),
+                sg.Text('Defeats:'),
+                sg.Button('+', key='support_losses_plus'), 
+                sg.Text(self.support.current_losses, key='support_losses'), 
+                sg.Button('-', key='support_losses_minus'),
+                sg.Text('Total victories:'), 
+                sg.InputText(self.support.total_wins, key='support_total_wins', size=3),
+                sg.Text('Total defeats/ties:'), 
+                sg.InputText(self.support.total_losses, key='support_total_losses', size=3),
+                sg.Text('Total games:'), 
+                sg.Text(self.support.total, key='support_total_games')
+            ],
+            [
+                sg.Text('Open queue', s=11, font='bold'), 
+                sg.Text('Victories:'),
+                sg.Button('+', key='open_wins_plus'), 
+                sg.Text(self.open.current_wins, key='open_wins'), 
+                sg.Button('-', key='open_wins_minus'),
+                sg.Text('Defeats:'),
+                sg.Button('+', key='open_losses_plus'), 
+                sg.Text(self.open.current_losses, key='open_losses'), 
+                sg.Button('-', key='open_losses_minus'),
+                sg.Text('Total victories:'), 
+                sg.InputText(self.open.total_wins, key='open_total_wins', size=3),
+                sg.Text('Total defeats/ties:'), 
+                sg.InputText(self.open.total_losses, key='open_total_losses', size=3),
+                sg.Text('Total games:'), 
+                sg.Text(self.open.total, key='open_total_games')
+            ]
+        ]
+        layout = [
+            [
+              sg.Column(column, justification='left', expand_x=True, )  
+            ],
+            [
+                sg.Button('Set values', key='set'),
+                sg.Button('Restore from backup', key='backup'),
+                sg.Text('Total ranked games:'),
+                sg.Text(self.total_games, key='total_games')
+            ]
+        ]
+        return layout
     
-    #TODO: find the issue with double event processing
-    #TODO: find the issue with input text noot working as intended
     def gui(self) -> None:
         self.logger.debug('Initializing the GUI')
         sg.theme('Purple')
-        layout = [
-            [
-                sg.Text('Tank'), 
-                sg.Text('Wins:'),
-                sg.Button('+', key='tank_wins_plus'), 
-                sg.InputText(self.tank.current_wins, key='tank_wins_input', size=2), 
-                sg.Button('-', key='tank_wins_minus'),
-                sg.Text('Losses:'),
-                sg.Button('+', key='tank_losses_plus'), 
-                sg.InputText(self.tank.current_losses, key='tank_losses_input', size=2), 
-                sg.Button('-', key='tank_losses_minus'),
-                sg.Text('Total wins: '), 
-                sg.Text(str(self.tank.total_wins), key='tank_total_wins'),
-                sg.Text('Total loses/ties: '), 
-                sg.Text(str(self.tank.total_losses), key='tank_total_losses'),
-                sg.Text('Total games: '), 
-                sg.Text(str(self.tank.total), key='tank_total_games')
-            ],
-            [
-                sg.Text('DPS'), 
-                sg.Text('Wins:'),
-                sg.Button('+', key='dps_wins_plus'),
-                sg.InputText(self.dps.current_wins, key='dps_wins_input', size=2), 
-                sg.Button('-', key='dps_wins_minus'),
-                sg.Text('Losses:'),
-                sg.Button('+', key='dps_losses_plus'), 
-                sg.InputText(self.dps.current_losses, key='dps_losses_input', size=2), 
-                sg.Button('-', key='dps_losses_minus'),
-                sg.Text('Total wins: '),
-                sg.Text(str(self.dps.total_wins), key='dps_total_wins'),
-                sg.Text('Total loses/ties: '), 
-                sg.Text(str(self.dps.total_losses), key='dps_total_losses'),
-                sg.Text('Total games: '), 
-                sg.Text(str(self.dps.total), key='dps_total_games')
-            ],
-            [
-                sg.Text('Support'), 
-                sg.Text('Wins:'),
-                sg.Button('+', key='support_wins_plus'), 
-                sg.InputText(self.support.current_wins, key='support_wins_input', size=2), 
-                sg.Button('-', key='support_wins_minus'),
-                sg.Text('Losses:'),
-                sg.Button('+', key='support_losses_plus'), 
-                sg.InputText(self.support.current_losses, key='support_losses_input', size=2), 
-                sg.Button('-', key='support_losses_minus'),
-                sg.Text('Total wins: '), 
-                sg.Text(str(self.support.total_wins), key='support_total_wins'),
-                sg.Text('Total loses/ties: '), 
-                sg.Text(str(self.support.total_losses), key='support_total_losses'),
-                sg.Text('Total games: '), 
-                sg.Text(str(self.support.total), key='support_total_games')
-            ]
-        ]
+        layout = self._layout()
         window = sg.Window(f'Overwatch 2 games counter, version {self.version}', layout)
         while True:
             event, context = window.read()
-            if event == sg.WIN_CLOSED or event == 'Exit':
-                counter_tuple = (
-                    self.tank,
-                    self.dps,
-                    self.support
-                )
-                self._save(counter_tuple=counter_tuple)
-                break
-            if 'input' not in event:
-                event_list = event.split('_')
-                self._the_counter(
-                    role=event_list[0],
-                    result=event_list[1],
-                    operator=event_list[2]
-                )
-                
-            else:
-                match event.split('_'):
-                    case ['tank', 'wins', _]:
-                        self.tank.current_wins = int(context['tank_wins_input'])
-                    case ['tank', 'losses', _]:
-                        self.tank.current_losses = int(context['tank_losses_input'])
-                    case ['dps', 'wins', _]:
-                        self.dps.current_wins = int(context['dps_wins_input'])
-                    case ['dps', 'losses', _]:
-                        self.dps.current_losses = int(context['dps_losses_input'])
-                    case ['support', 'wins', _]:
-                        self.support.current_wins = int(context['support_wins_input'])
-                    case ['support', 'losses', _]:
-                        self.support.current_losses = int(context['support_losses_input'])
+            match event:
+                case sg.WIN_CLOSED | 'Exit':
+                    break
+                case 'set':
+                    self.tank.total_wins = int(context['tank_total_wins'])
+                    self.tank.total_losses = int(context['tank_total_losses'])
+                    self.tank.total = self.tank.total_wins + self.tank.total_losses
+                    self.dps.total_wins = int(context['dps_total_wins'])
+                    self.dps.total_losses = int(context['dps_total_losses'])
+                    self.dps.total = self.dps.total_wins + self.dps.total_losses
+                    self.support.total_wins = int(context['support_total_wins'])
+                    self.support.total_losses = int(context['support_total_losses'])
+                    self.support.total = self.support.total_wins + self.support.total_losses
+                    self.open.total_wins = int(context['open_total_wins'])
+                    self.open.total_losses = int(context['open_total_losses'])
+                    self.open.total = self.open.total_wins + self.open.total_losses
+                case 'backup':
+                    self._backup()
+                case _ if 'input' not in event:
+                    event_list = event.split('_')
+                    self._the_counter(
+                        role=event_list[0],
+                        result=event_list[1],
+                        operator=event_list[2]
+                    )
+            self.total_games = self.tank.total + self.dps.total + self.support.total + self.open.total    
             update_list = self._update_matcher(event)
             for update_tuple in update_list:
-                window[update_tuple[0]].update(update_tuple[1])        
+                window[update_tuple[0]].update(update_tuple[1])    
+            counter_tuple = (
+                self.tank,
+                self.dps,
+                self.support,
+                self.open
+            )
+            self._save(counter_tuple=counter_tuple)    
                         
                         
     
