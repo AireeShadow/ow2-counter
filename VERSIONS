@@ -1,4 +1,5 @@
+1.2.0 - refined layout from horizontal to vertical, added win percentage, added league counter, added app icon
 1.1.0 - added open queue counter, changed wins to victories and losses to defeats, added ability to set total victories/defeats, added ability to restore from backup 
-1.0.2 - fix for counter logic (reset counters), added lables foor wins and losses
+1.0.2 - fix for counter logic (reset counters), added lables for wins and losses
 1.0.1 - fixing incorrect loading of data - switched to three dataclasses instead of one
 1.0.0 - initial commit

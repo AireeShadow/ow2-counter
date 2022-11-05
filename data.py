@@ -8,6 +8,8 @@ class Tank:
     total: int = 0
     current_wins: int = 0
     current_losses: int = 0
+    win_percentage: float = 0.0
+    league: str = 'Bronze 5'
     
 @dataclass
 class DPS:
@@ -16,6 +18,8 @@ class DPS:
     total: int = 0
     current_wins: int = 0
     current_losses: int = 0
+    win_percentage: float = 0.0
+    league: str = 'Bronze 5'
     
 @dataclass
 class Support:
@@ -24,7 +28,9 @@ class Support:
     total: int = 0
     current_wins: int = 0
     current_losses: int = 0
-
+    win_percentage: float = 0.0
+    league: str = 'Bronze 5'
+    
 @dataclass
 class Open:
     total_wins: int = 0
@@ -32,4 +38,5 @@ class Open:
     total: int = 0
     current_wins: int = 0
     current_losses: int = 0
-    
+    win_percentage: float = 0.0
+    league: str = 'Bronze 5'
